@@ -1,0 +1,274 @@
+--Descrição: Considerando o BD de uma oficina mecânica desenvolvido nas últimas aulas (e disponível na página da --disciplina), faça a especificação dos seguintes gatilhos em PostgreSQL:
+--ALUNA:DEBORA BANSEN
+
+--1)Gatilho para impedir a inserção ou atualização de Clientes com o mesmo CPF.
+
+create or replace function verificaCPF() returns trigger as
+$$
+begin
+	if(select 1 from cliente where cpf=new.cpf and codc<>new.codc)then
+		raise exception 'CPF já cadastrado'	;
+	end if;
+	return new;
+end;
+$$
+language plpgsql;
+
+create trigger verificaCPF before insert or update on cliente for each row execute procedure verificaCPF();
+
+
+
+
+
+--2)Gatilho para impedir a inserção ou atualização de Mecânicos com idade menor que 20 anos.
+
+create or replace function insereMecanico() returns trigger as 
+$$
+begin
+	if( new.idade<20 ) then
+		raise exception 'idade menor que 20 anos';
+	end if;
+	return new;
+end;
+$$
+language plpgsql;
+
+create trigger insereMecanico before insert or update on mecanico for each row execute procedure insereMecanico();
+
+
+
+
+
+
+
+
+--3)Gatilho para atribuir um cods (sequencial) para um novo setor inserido.
+
+create sequence novo_cods start 10;
+
+create or replace function insereSetorSequence() returns trigger as 
+$$
+
+begin
+	new.cods:=nextval('novo_cods');
+	return new;
+end;
+$$
+language plpgsql;
+create trigger insereSetorSequence before insert on setor for each row execute procedure insereSetorSequence();
+
+
+
+
+
+--4)Gatilho para impedir a inserção de um mecânico ou cliente com CPF inválido.
+
+---------------------FUNCAO DO EX7 USADA NA TIGGER-------------
+
+create or replace function cpfValido(pcpf varchar(11))returns int as
+$$
+declare
+	cpfAux varchar default $1;
+	dig1 int default 0;
+	dig2 int default 0;
+	aux int;
+	
+begin
+	if(cpfAux in('00000000000','11111111111','22222222222','33333333333','44444444444','55555555555'
+				 ,'66666666666','77777777777','88888888888','99999999999'))then
+		return 0;
+	end if;
+	aux:=1;
+	for count in reverse 10..2 loop
+		dig1:=dig1 +(cast(substring(cpfAux,aux,1) as int)*count);
+		aux:=aux+1;
+	end loop;
+	
+	
+	if (dig1%11<2)then
+		dig1:=0;
+	else 
+		dig1:=11-(dig1%11);
+	end if;
+	
+	if((cast(substring(cpfAux,10,1) as int))!=dig1)then
+		return 0;
+	end if;
+	
+	aux:=1;
+	for count in reverse 11..2 loop
+		dig2:=dig2 +(cast(substring(cpfAux,aux,1) as int)*count);
+		aux:=aux+1;
+	end loop;
+	
+	
+	if (dig2%11<2)then
+		dig2:=0;
+	else 
+		dig2:=11-(dig2%11);
+	end if;
+	
+	if((cast(substring(cpfAux,11,1) as int))!=dig2)then
+		return 0;
+	end if;
+	
+	return 1;
+	
+end
+$$
+language plpgsql;
+
+------------------------------TRIGGER-------------------------------------
+
+
+create or replace function insereCPFinvalido() returns trigger as 
+$$
+begin
+	if(cpfValido(new.cpf)=0)then
+		raise exception 'cpf invalido';
+	else	
+		return new;
+	end if;	
+end;
+$$
+language plpgsql;
+
+create trigger insereCPFinvalido before insert on cliente for each row execute procedure insereCPFinvalido();
+create trigger insereCPFinvalido before insert on mecanico for each row execute procedure insereCPFinvalido();
+
+
+
+
+
+
+
+
+
+
+
+
+--5)Gatilho para impedir que um mecânico seja removido caso não exista outro mecânico com a mesma função.
+
+create or replace function remocaoMecMesmaFunc() returns trigger as 
+$$
+begin
+
+	if(select 1 from mecanico where funcao=old.funcao and codm<>old.codm)then
+		return new;
+	else	
+		raise exception 'nao existe outro mecanico com a mesma funcao';
+	end if;	
+	return NULL;
+end;
+$$
+language plpgsql;
+create trigger remocaoMecMesmaFunc after delete on mecanico for each row execute procedure remocaoMecMesmaFunc();
+
+
+
+
+
+
+
+
+--6)Gatilho que ao inserir, atualizar ou remover um mecânico, reflita as mesmas modificações na tabela de Cliente. Em caso de atualização, se o mecânico ainda não existir na tabela de Cliente, deve ser inserido.
+
+create sequence  cliente_cod_seq start 15;
+create or replace function insertUpdateDelMec() returns trigger as 
+$$
+begin
+		
+	if TG_OP='INSERT' then
+		INSERT INTO cliente values(nextval('cliente_cod_seq'),new.cpf,new.nome,new.idade,new.endereco,new.cidade);
+	end if;	
+	if TG_OP='UPDATE' then
+		if(select 1 from cliente where cpf=new.cpf )then
+			UPDATE cliente set nome=new.nome,idade=new.idade,endereco=new.endereco,cidade=new.cidade where
+			cpf=new.cpf;
+		else	
+			INSERT INTO cliente values(nextval('cliente_cod_seq'),new.cpf,new.nome,new.idade,new.endereco,new.cidade); 
+		end if;	
+	elseif TG_OP='DELETE' then
+		delete from cliente where cpf=old.cpf;		
+	end if;	
+	return NULL;
+end;
+$$
+language plpgsql;
+create trigger insertUpdateDelMec after insert or update or delete on
+mecanico for each row execute procedure insertUpdateDelMec();
+
+
+
+
+
+
+
+--7)Gatilho para impedir que um conserto seja inserido na tabela Conserto se o mecânico já realizou mais de 20 --horas extras no mês.
+
+-------------------FUNCAO USADA NA TIGGER---------------------------------------------
+
+create or replace function qtdHorasExtraMec(pcodm int,pmes int,pano int) returns int as
+$$
+declare
+	horaExtra int default 0;
+	horasTrab int default 160;
+begin
+	select count(codm) into horaExtra from conserto where codm = pcodm and date_part('month',data)=pmes and
+	date_party('year',data)=pano;
+	if (horaExtra<horasTrab) then
+		return horaExtra-horasTrab;
+	else
+		return 0;
+	end if;
+
+end
+$$
+language plpgsql;
+
+------------------TIGGER---------------------------------------------------------------
+
+
+
+create or replace function insertConserto() returns trigger as 
+$$
+declare
+	mes int;
+	ano int;
+begin
+	mes:= date_part('month',new.data);
+	ano:= date_part('year',new.data);
+	if(qtdHorasExtraMec(new.codm,mes,ano)>20)then
+		raise exception 'O funcionario excedeu quantidade de horas extras';
+	end if;
+	return new;
+end;
+$$
+language plpgsql;
+
+create trigger insertConserto before insert  on
+conserto for each row execute procedure insertConserto();
+
+
+
+
+
+
+
+
+--8)Gatilho para impedir que mais de 1 conserto seja agendado no mesmo setor na mesma hora. 
+
+create or replace function verificaConsertoHora() returns trigger as 
+$$
+begin
+	if(select count(1) from conserto join mecanico using(codm) where data=new.data and hora = new.hora
+	  group by cods)>0 then
+		raise exception 'setor ja possui agendamento neste horario';
+	end if;
+	return new;
+end;
+$$
+language plpgsql;
+
+create trigger verificaConsertoHora before insert or update on
+conserto for each row execute procedure verificaConsertoHora();

@@ -1,0 +1,35 @@
+--1)Recupere o nome e o endereço de cada cliente.
+select c.nome, c.endereco from cliente c 
+
+--2)Recupere o nome e a função dos mecânicos que trabalham no setor número 2 (cods 2).
+select m.nome, m.funcao from mecanico m where m.cods=2
+
+--3)Recupere o CPF e o nome de todos os mecânicos que são clientes da oficina (utilize operação de conjuntos).
+select m.cpf, m.nome  from mecanico m,cliente s where m.cpf=s.cpf
+ 
+--4)Recupere as cidades das quais os mecânicos e clientes são oriundos.
+select cidade from mecanico union select cidade from cliente
+
+--5)Recupere as marcas distintas dos veículos dos clientes que moram em Joinville.
+select distinct v.marca from veiculo v,cliente c where v.codc=c.codc and c.cidade='Joinville'
+
+--6)Recupere as funções distintas dos mecânicos da oficina.
+select distinct funcao from mecanico
+
+--7)Recupere todas as informações dos clientes que têm idade maior que 25 anos.
+select * from cliente c where c.idade>25
+
+--8)Recupere o CPF e o nome dos mecânicos que trabalham no setor de mecânica.
+select m.cpf,m.nome from mecanico m,setor s where s.cods=m.cods and s.nome='Mecânica'
+
+--9)Recupere o CPF e nome dos mecânicos que trabalharam no dia 13/06/2014.
+select distinct m.cpf,m.nome from mecanico m, conserto c where m.codm=c.codm and c.data='13/06/2014'
+
+--10)Recupere o nome do cliente, o modelo do seu veículo, o nome do mecânico e sua função para todos os consertos realizados (utilize join para realizar a junção).
+select c.nome,v.modelo,m.nome,m.funcao from cliente c join veiculo v using(codc) join conserto t using(codv) join mecanico m using(codm)
+
+--11)Recupere o nome do mecânico, o nome do cliente e a hora do conserto para as serviços realizados no dia 19/06/2014 (utilize join para realizar a junção).
+select m.nome,c.nome,t.hora from mecanico m join conserto t using(codm) join veiculo using(codv) join cliente c using(codc) where t.data='19/06/2014'
+
+--12)Recupere o código e o nome dos setores que foram utilizados entre os dias 12/06/2014 e 14/06/2014 (utilize join para realizar a junção).
+select distinct s.cods,s.nome from setor s join mecanico using(cods) join conserto t using(codm) where t.data='12/06/2014' or t.data='14/06/2014'

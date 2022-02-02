@@ -1,0 +1,47 @@
+Aluna:Debora Bansen
+
+1) As figuras abaixo mostram logs correspondentes aos planos de execução de conjuntos de transações até o ponto da queda do sistema. Descreva o processo para a recuperação de cada uma delas após a queda do sistema. Especifique quais transações serão desfeitas ou refeitas e quais são os valores das variáveis após o processo de recuperação.
+
+a) UNDO / REDO
+
+lista redo: T4
+lista undo: T2, T3
+
+A=30->20
+B=12
+C=30
+D=15
+
+b) NO-UNDO / REDO
+
+lista redo: T4, T3, T2
+
+A=22->40->55
+B=18->38
+C=34
+D=30->33
+
+
+c) UNDO / NO-REDO
+
+lista undo: T5
+
+A=30
+B=12
+C=45
+D=25
+
+
+2)(Questão de múltipla escolha) No caso da transação falhar sob um esquema de log incremental deatualização adiada, qual das seguintes opções seria necessária:
+
+ 1.Operações desfazer.
+(2).Operações refazer. <-resposta
+ 3.Operações desfazer e refazer. 
+ 4.Nenhuma acima.
+
+3)(Questão de múltipla escolha) Há possibilidade de reversão (rollback) em cascata quando…
+
+ 1.Uma transação grava itens que tenham sido gravados apenas por uma transação efetivada.
+ 2.Uma transação grava um item que já foi previamente gravado por uma transação não-efetivada.
+ (3).Uma transação lê um item que foi previamente gravado por uma transação não-efetivada.<- resposta
+ 4.Ambas (2) e (3) estão corretas

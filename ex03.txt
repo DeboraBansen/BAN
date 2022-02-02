@@ -1,0 +1,174 @@
+
+
+--A)
+
+CREATE TABLE setor
+(
+    cods integer NOT NULL,
+    nome character varying(50),
+    PRIMARY KEY (cods)
+);
+CREATE TABLE mecanico
+(
+  codm serial NOT NULL,
+  cpf char(11),
+  nome character varying(50),
+  idade integer,
+  endereco character varying(500),
+  cidade character varying(500),
+  funcao character varying(50),
+  cods integer,
+  PRIMARY KEY (codm),
+  FOREIGN KEY (cods) REFERENCES setor (cods)
+);
+CREATE TABLE cliente
+(
+  codc integer NOT NULL,
+  cpf char(11),
+  nome character varying(50),
+  idade integer,
+  endereco character varying(500),
+  cidade character varying(500),
+  PRIMARY KEY (codc) 
+);
+CREATE TABLE veiculo
+(
+  codv integer NOT NULL,
+  renavam char(10),
+  modelo character varying(50),
+  marca character varying(50),
+  ano integer,
+  quilometragem float,
+  codc integer,
+  PRIMARY KEY (codv),
+  FOREIGN KEY (codc) REFERENCES cliente (codc)
+);
+CREATE TABLE conserto
+(
+  codm integer NOT NULL,
+  codv integer NOT NULL,
+  data date NOT NULL,
+  PRIMARY KEY (codm, codv, data),
+  FOREIGN KEY (codm) REFERENCES mecanico (codm), 
+  FOREIGN KEY (codv) REFERENCES veiculo (codv) 
+);
+----------------------------------------------------------
+
+--B)
+CREATE TABLE curso
+(
+	sigla_curso char(10) NOT NULL,
+	nome character varying(100),
+	titulacao character varying(100),
+	PRIMARY KEY(sigla_curso)
+);
+CREATE TABLE disciplina
+(
+	sigla_disc char(10) NOT NULL,
+	nome character varying(100),
+	carga_horario integer,
+	PRIMARY KEY (sigla_disc)
+);
+CREATE TABLE requisito
+(
+	sigla_disc_req char(10) NOT NULL,
+	sigla_curso_req char(10) NOT NULL,
+	sigla_disc char(10) NOT NULL,
+	sigla_curso char(10) NOT NULL,
+	PRIMARY KEY(sigla_curso_req,sigla_disc_req,sigla_curso,sigla_disc),
+	FOREIGN KEY (sigla_disc) REFERENCES disciplina (sigla_disc),
+	FOREIGN KEY (sigla_curso) REFERENCES curso (sigla_curso),
+	FOREIGN KEY (sigla_disc_req) REFERENCES disciplina (sigla_disc),
+	FOREIGN KEY (sigla_curso_req) REFERENCES curso (sigla_curso)
+);
+CREATE TABLE grade
+(
+	sigla_curso char(10) NOT NULL,
+	sigla_disc char(10) NOT NULL,
+	PRIMARY KEY(sigla_curso,sigla_disc),
+	FOREIGN KEY (sigla_disc) REFERENCES disciplina (sigla_disc),
+	FOREIGN KEY (sigla_curso) REFERENCES curso (sigla_curso)
+);
+CREATE TABLE aluno
+(
+	cpf char(11) NOT NULL,
+	nome character varying(100),
+	rua character varying(255),
+	numero integer,
+	cidade character varying(100),
+	estado char(2),
+	cep integer,
+	PRIMARY KEY (cpf)
+);
+CREATE TABLE inscricao
+(
+	matricula integer NOT NULL,
+	sigla_curso char(10),
+	cpf char(11),
+	PRIMARY KEY (matricula),
+	FOREIGN KEY (sigla_curso) REFERENCES curso (sigla_curso),
+	FOREIGN KEY (cpf) REFERENCES aluno (cpf)
+);
+CREATE TABLE matricula
+(
+	sigla_disc char(10) NOT NULL,
+	matricula integer NOT NULL,
+	ano date NOT NULL,
+	semestre integer NOT NULL,
+	PRIMARY KEY (sigla_disc,matricula,ano,semestre),
+        FOREIGN KEY (matricula) REFERENCES inscricao (matricula), 
+        FOREIGN KEY (sigla_disc) REFERENCES disciplina (sigla_disc)
+);
+CREATE TABLE area
+(
+	cod_area integer NOT NULL,
+	descricao character varying(100),
+	PRIMARY KEY (cod_area)
+);
+CREATE TABLE professor
+(
+	reg_mec integer NOT NULL,
+	nome character varying(100),
+	rua character varying(255),
+	numero integer,
+	cidade character varying(100),
+	estado char(2),
+	cep integer,
+	PRIMARY KEY (reg_mec)
+);
+CREATE TABLE habilitacao
+(
+	sigla_disc char(10) NOT NULL,
+	reg_mec integer NOT NULL,
+	PRIMARY KEY (sigla_disc,reg_mec),
+        FOREIGN KEY (reg_mec) REFERENCES professor (reg_mec), 
+        FOREIGN KEY (sigla_disc) REFERENCES disciplina (sigla_disc)
+);
+CREATE TABLE leciona
+(
+	sigla_disc char(10) NOT NULL,
+	reg_mec integer NOT NULL,
+	ano date NOT NULL,
+	semestre integer NOT NULL,
+	PRIMARY KEY (sigla_disc,reg_mec,ano,semestre),
+        FOREIGN KEY (reg_mec) REFERENCES professor (reg_mec), 
+        FOREIGN KEY (sigla_disc) REFERENCES disciplina (sigla_disc)
+);
+CREATE TABLE titulo
+(
+	reg_mec integer NOT NULL,
+	cod_area integer NOT NULL,
+	data_da_titulacao date,
+	PRIMARY KEY (reg_mec, cod_area),
+        FOREIGN KEY (reg_mec) REFERENCES professor (reg_mec), 
+        FOREIGN KEY (cod_area) REFERENCES area (cod_area)
+);
+CREATE TABLE responsavel
+(
+	reg_mec integer NOT NULL,
+	cod_area integer NOT NULL,
+	data date,
+	PRIMARY KEY (reg_mec, cod_area),
+        FOREIGN KEY (reg_mec) REFERENCES professor (reg_mec), 
+        FOREIGN KEY (cod_area) REFERENCES area (cod_area) 
+);

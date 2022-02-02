@@ -1,0 +1,377 @@
+
+                                    Exercício 13
+
+                                Otimização de Consultas
+
+  Aluna: DEBORA BANSEN
+
+  Descrição: Considerando o BD da oficina mecânica, faça a otimização dos comandos SQL para as seguintes consultas.
+
+- Faça a criação dos índices e as modificações na especificação das consultas que achar necessário para melhorar a sua otimização.
+
+- Avalie a otimização realizada analisando a consulta por meio da ferramenta Explain Analyze do pgAdmin.
+
+
+
+1)Recupere o CPF e o nome dos mecânicos que trabalham nos setores maiores que 100 e menores que 200.
+
+	explain analyse select cpf,nome from mecanico where cods>100 and cods<200
+	
+	"Seq Scan on mecanico  (cost=0.00..267.00 rows=102 width=24) (actual time=0.120..2.682 rows=102 loops=1)"
+	"  Filter: ((cods > 100) AND (cods < 200))"
+	"  Rows Removed by Filter: 9898"
+	"Planning Time: 1.458 ms"
+	"Execution Time: 2.715 ms"
+	
+	Create index idx_cods on mecanico using btree(cods)
+
+	"Bitmap Heap Scan on mecanico  (cost=5.33..125.42 rows=102 width=24) (actual time=0.047..0.155 rows=102 loops=1)"
+	"  Recheck Cond: ((cods > 100) AND (cods < 200))"
+	"  Heap Blocks: exact=67"
+	"  ->  Bitmap Index Scan on idx_cods  (cost=0.00..5.30 rows=102 width=0) (actual time=0.031..0.031 rows=102 loops=1)"
+	"        Index Cond: ((cods > 100) AND (cods < 200))"
+	"Planning Time: 4.439 ms"
+	"Execution Time: 0.226 ms"
+
+	
+
+
+
+2)Recupere o CPF e nome dos mecânicos que atenderam no dia 13/06/2018.
+
+	explain analyse select distinct(m.cpf),m.nome from mecanico m,conserto c where c.codm=m.codm and data='13/06/2018'
+
+
+	"Unique  (cost=416.49..416.75 rows=35 width=24) (actual time=1.972..1.986 rows=35 loops=1)"
+	"  ->  Sort  (cost=416.49..416.57 rows=35 width=24) (actual time=1.971..1.973 rows=35 loops=1)"
+	"        Sort Key: m.cpf, m.nome"
+	"        Sort Method: quicksort  Memory: 27kB"
+	"        ->  Nested Loop  (cost=0.29..415.59 rows=35 width=24) (actual time=0.083..1.855 rows=35 loops=1)"
+	"              ->  Seq Scan on conserto c  (cost=0.00..189.00 rows=35 width=4) (actual time=0.069..1.636 rows=35 loops=1)"
+	"                    Filter: (data = '2018-06-13'::date)"
+	"                    Rows Removed by Filter: 9965"
+	"              ->  Index Scan using mecanico_pkey on mecanico m  (cost=0.29..6.47 rows=1 width=28) (actual time=0.005..0.005 rows=1 loops=35)"
+	"                    Index Cond: (codm = c.codm)"
+	"Planning Time: 2.671 ms"
+	"Execution Time: 2.033 ms"
+
+	
+	Create index idx_codm on mecanico using btree(codm)
+	Create index idx_codm_conserto on conserto using hash(codm)
+	CREATE INDEX idx_conserto_data ON conserto USING btree (data)	
+
+
+	"Unique  (cost=288.92..289.18 rows=35 width=24) (actual time=0.430..0.442 rows=35 loops=1)"
+	"  ->  Sort  (cost=288.92..289.01 rows=35 width=24) (actual time=0.429..0.430 rows=35 loops=1)"
+	"        Sort Key: m.cpf, m.nome"
+	"        Sort Method: quicksort  Memory: 27kB"
+	"        ->  Nested Loop  (cost=4.84..288.02 rows=35 width=24) (actual time=0.086..0.322 rows=35 loops=1)"
+	"              ->  Bitmap Heap Scan on conserto c  (cost=4.56..61.43 rows=35 width=4) (actual time=0.072..0.126 rows=35 loops=1)"
+	"                    Recheck Cond: (data = '2018-06-13'::date)"
+	"                    Heap Blocks: exact=29"
+	"                    ->  Bitmap Index Scan on idx_conserto_data  (cost=0.00..4.55 rows=35 width=0) (actual time=0.063..0.063 rows=35 loops=1)"
+	"                          Index Cond: (data = '2018-06-13'::date)"
+	"              ->  Index Scan using idx_codm on mecanico m  (cost=0.29..6.47 rows=1 width=28) (actual time=0.005..0.005 rows=1 loops=35)"
+	"                    Index Cond: (codm = c.codm)"
+	"Planning Time: 2.627 ms"
+	"Execution Time: 0.560 ms"
+
+
+3)Recupere o nome do mecânico, o nome do cliente e a hora do conserto para os consertos realizados de 12/06/2018 à 25/09/2018.
+
+	explain analyse select m.nome,c nome,s.hora from mecanico m,cliente c,conserto s,veiculo v where s.data between 
+	'12/06/2018' and '25/09/2018' and m.codm=s.codm and v.codv=s.codv and v.codc=c.codc
+
+	"Hash Join  (cost=893.31..1187.85 rows=3171 width=603) (actual time=18.565..29.410 rows=3175 loops=1)"
+	"  Hash Cond: (s.codm = m.codm)"
+	"  ->  Hash Join  (cost=551.31..837.52 rows=3171 width=595) (actual time=11.697..19.810 rows=3175 loops=1)"
+	"        Hash Cond: (c.codc = v.codc)"
+	"        ->  Seq Scan on cliente c  (cost=0.00..192.00 rows=10000 width=587) (actual time=0.056..5.865 rows=10000 loops=1)"
+	"        ->  Hash  (cost=511.68..511.68 rows=3171 width=16) (actual time=11.575..11.575 rows=3175 loops=1)"
+	"              Buckets: 4096  Batches: 1  Memory Usage: 181kB"
+	"              ->  Hash Join  (cost=391.79..511.68 rows=3171 width=16) (actual time=6.968..10.562 rows=3175 loops=1)"
+	"                    Hash Cond: (s.codv = v.codv)"
+	"                    ->  Bitmap Heap Scan on conserto s  (cost=72.79..184.35 rows=3171 width=16) (actual time=0.397..1.201 rows=3175 loops=1)"
+	"                          Recheck Cond: ((data >= '2018-06-12'::date) AND (data <= '2018-09-25'::date))"
+	"                          Heap Blocks: exact=64"
+	"                          ->  Bitmap Index Scan on idx_conserto_data  (cost=0.00..72.00 rows=3171 width=0) (actual time=0.376..0.376 rows=3175 loops=1)"
+	"                                Index Cond: ((data >= '2018-06-12'::date) AND (data <= '2018-09-25'::date))"
+	"                    ->  Hash  (cost=194.00..194.00 rows=10000 width=8) (actual time=6.436..6.436 rows=10000 loops=1)"
+	"                          Buckets: 16384  Batches: 1  Memory Usage: 519kB"
+	"                          ->  Seq Scan on veiculo v  (cost=0.00..194.00 rows=10000 width=8) (actual time=0.029..3.813 rows=10000 loops=1)"
+	"  ->  Hash  (cost=217.00..217.00 rows=10000 width=16) (actual time=6.736..6.736 rows=10000 loops=1)"
+	"        Buckets: 16384  Batches: 1  Memory Usage: 632kB"
+	"        ->  Seq Scan on mecanico m  (cost=0.00..217.00 rows=10000 width=16) (actual time=0.022..3.568 rows=10000 loops=1)"
+	"Planning Time: 1.472 ms"
+	"Execution Time: 30.075 ms"
+
+	
+	Create index idx_codc on cliente using btree(codc)
+	Create index idx_codv on veiculo using btree(codv)
+	Create index idx_codc_veiculo on veiculo using hash(codc)
+	Create index idx_codv_conserto on conserto using hash(codv)
+
+
+	"Hash Join  (cost=893.31..1187.85 rows=3171 width=603) (actual time=17.017..27.754 rows=3175 loops=1)"
+	"  Hash Cond: (s.codm = m.codm)"
+	"  ->  Hash Join  (cost=551.31..837.52 rows=3171 width=595) (actual time=11.450..20.179 rows=3175 loops=1)"
+	"        Hash Cond: (c.codc = v.codc)"
+	"        ->  Seq Scan on cliente c  (cost=0.00..192.00 rows=10000 width=587) (actual time=0.068..6.557 rows=10000 loops=1)"
+	"        ->  Hash  (cost=511.68..511.68 rows=3171 width=16) (actual time=11.318..11.319 rows=3175 loops=1)"
+	"              Buckets: 4096  Batches: 1  Memory Usage: 181kB"
+	"              ->  Hash Join  (cost=391.79..511.68 rows=3171 width=16) (actual time=7.829..10.400 rows=3175 loops=1)"
+	"                    Hash Cond: (s.codv = v.codv)"
+	"                    ->  Bitmap Heap Scan on conserto s  (cost=72.79..184.35 rows=3171 width=16) (actual time=0.334..1.265 rows=3175 loops=1)"
+	"                          Recheck Cond: ((data >= '2018-06-12'::date) AND (data <= '2018-09-25'::date))"
+	"                          Heap Blocks: exact=64"
+	"                          ->  Bitmap Index Scan on idx_conserto_data  (cost=0.00..72.00 rows=3171 width=0) (actual time=0.313..0.314 rows=3175 loops=1)"
+	"                                Index Cond: ((data >= '2018-06-12'::date) AND (data <= '2018-09-25'::date))"
+	"                    ->  Hash  (cost=194.00..194.00 rows=10000 width=8) (actual time=7.361..7.361 rows=10000 loops=1)"
+	"                          Buckets: 16384  Batches: 1  Memory Usage: 519kB"
+	"                          ->  Seq Scan on veiculo v  (cost=0.00..194.00 rows=10000 width=8) (actual time=0.027..4.343 rows=10000 loops=1)"
+	"  ->  Hash  (cost=217.00..217.00 rows=10000 width=16) (actual time=5.411..5.411 rows=10000 loops=1)"
+	"        Buckets: 16384  Batches: 1  Memory Usage: 632kB"
+	"        ->  Seq Scan on mecanico m  (cost=0.00..217.00 rows=10000 width=16) (actual time=0.104..2.552 rows=10000 loops=1)"
+	"Planning Time: 1.592 ms"
+	"Execution Time: 28.477 ms"
+
+
+
+4)Recupere o nome e a função de todos os mecânicos, e o número e o nome dos setores para os mecânicos que tenham essa informação.
+
+	explain analyse select m.nome,m.funcao,m.cods,s.nome from mecanico m  left join  setor s using(cods)
+	where m.cods=s.cods
+
+	"Hash Join  (cost=280.00..523.26 rows=10000 width=35) (actual time=7.245..14.771 rows=10000 loops=1)"
+	"  Hash Cond: (m.cods = s.cods)"
+	"  ->  Seq Scan on mecanico m  (cost=0.00..217.00 rows=10000 width=26) (actual time=0.020..1.364 rows=10000 loops=1)"
+	"  ->  Hash  (cost=155.00..155.00 rows=10000 width=13) (actual time=7.089..7.089 rows=10000 loops=1)"
+	"        Buckets: 16384  Batches: 1  Memory Usage: 597kB"
+	"        ->  Seq Scan on setor s  (cost=0.00..155.00 rows=10000 width=13) (actual time=0.022..1.994 rows=10000 loops=1)"
+	"Planning Time: 0.384 ms"
+	"Execution Time: 15.298 ms"
+
+
+	Create index idx_cods on mecanico using btree(cods)
+	Create index idx_cods_setor on setor using btree(cods)
+
+	"Hash Join  (cost=280.00..523.26 rows=10000 width=35) (actual time=4.606..11.403 rows=10000 loops=1)"
+	"  Hash Cond: (m.cods = s.cods)"
+	"  ->  Seq Scan on mecanico m  (cost=0.00..217.00 rows=10000 width=26) (actual time=0.026..1.586 rows=10000 loops=1)"
+	"  ->  Hash  (cost=155.00..155.00 rows=10000 width=13) (actual time=4.433..4.433 rows=10000 loops=1)"
+	"        Buckets: 16384  Batches: 1  Memory Usage: 597kB"
+	"        ->  Seq Scan on setor s  (cost=0.00..155.00 rows=10000 width=13) (actual time=0.024..1.878 rows=10000 loops=1)"
+	"Planning Time: 3.139 ms"
+	"Execution Time: 11.942 ms"
+
+5)      Recupere o nome de todos os mecânicos, e as datas dos consertos para os mecânicos que têm consertos feitos (deve aparecer apenas um registro de nome de mecânico para cada data de conserto).
+
+	explain analyse select m.nome,c.data from mecanico m left join conserto c using(codm)
+
+"Hash Right Join  (cost=342.00..532.26 rows=10000 width=16) (actual time=5.304..12.791 rows=13676 loops=1)"
+"  Hash Cond: (c.codm = m.codm)"
+"  ->  Seq Scan on conserto c  (cost=0.00..164.00 rows=10000 width=8) (actual time=0.049..1.801 rows=10000 loops=1)"
+"  ->  Hash  (cost=217.00..217.00 rows=10000 width=16) (actual time=5.118..5.119 rows=10000 loops=1)"
+"        Buckets: 16384  Batches: 1  Memory Usage: 632kB"
+"        ->  Seq Scan on mecanico m  (cost=0.00..217.00 rows=10000 width=16) (actual time=0.021..2.265 rows=10000 loops=1)"
+"Planning Time: 0.402 ms"
+"Execution Time: 13.540 ms"
+
+	Create index idx_codm on mecanico using btree(codm)
+	Create index idx_codm_conserto on conserto using hash(codm)
+	
+
+"Hash Right Join  (cost=342.00..532.26 rows=10000 width=16) (actual time=5.643..12.836 rows=13676 loops=1)"
+"  Hash Cond: (c.codm = m.codm)"
+"  ->  Seq Scan on conserto c  (cost=0.00..164.00 rows=10000 width=8) (actual time=0.044..1.247 rows=10000 loops=1)"
+"  ->  Hash  (cost=217.00..217.00 rows=10000 width=16) (actual time=5.457..5.458 rows=10000 loops=1)"
+"        Buckets: 16384  Batches: 1  Memory Usage: 632kB"
+"        ->  Seq Scan on mecanico m  (cost=0.00..217.00 rows=10000 width=16) (actual time=0.021..2.898 rows=10000 loops=1)"
+"Planning Time: 0.458 ms"
+"Execution Time: 13.608 ms"
+
+	
+
+
+
+6)      Recupere a média da quilometragem de todos os veículos dos clientes.
+
+	explain analyse select avg(quilometragem) from veiculo
+
+"Aggregate  (cost=219.00..219.01 rows=1 width=8) (actual time=4.508..4.508 rows=1 loops=1)"
+"  ->  Seq Scan on veiculo  (cost=0.00..194.00 rows=10000 width=8) (actual time=0.026..2.398 rows=10000 loops=1)"
+"Planning Time: 0.113 ms"
+"Execution Time: 4.560 ms"
+
+	Create index idx_codv on veiculo using btree(codv)
+
+"Aggregate  (cost=219.00..219.01 rows=1 width=8) (actual time=3.551..3.551 rows=1 loops=1)"
+"  ->  Seq Scan on veiculo  (cost=0.00..194.00 rows=10000 width=8) (actual time=0.025..1.536 rows=10000 loops=1)"
+"Planning Time: 0.117 ms"
+"Execution Time: 3.596 ms"
+
+
+
+
+7)      Recupere a soma da quilometragem dos veículos de cada cidade onde residem seus proprietários.
+
+	explain analyse select sum(v.quilometragem) from veiculo v join cliente c using(codc) group by c.cidade
+
+"HashAggregate  (cost=587.26..587.32 rows=6 width=20) (actual time=18.280..18.282 rows=6 loops=1)"
+"  Group Key: c.cidade"
+"  ->  Hash Join  (cost=317.00..537.26 rows=10000 width=20) (actual time=5.243..14.763 rows=10000 loops=1)"
+"        Hash Cond: (v.codc = c.codc)"
+"        ->  Seq Scan on veiculo v  (cost=0.00..194.00 rows=10000 width=12) (actual time=0.030..1.262 rows=10000 loops=1)"
+"        ->  Hash  (cost=192.00..192.00 rows=10000 width=16) (actual time=5.070..5.071 rows=10000 loops=1)"
+"              Buckets: 16384  Batches: 1  Memory Usage: 609kB"
+"              ->  Seq Scan on cliente c  (cost=0.00..192.00 rows=10000 width=16) (actual time=0.022..2.465 rows=10000 loops=1)"
+"Planning Time: 34.045 ms"
+"Execution Time: 18.555 ms"
+
+
+	Create index idx_codc on cliente using btree(codc)
+	Create index idx_codc_cidade on cliente using btree(cidade)
+	Create index idx_codc_veiculo on veiculo using hash(codc)
+
+
+"HashAggregate  (cost=587.26..587.32 rows=6 width=20) (actual time=16.532..16.533 rows=6 loops=1)"
+"  Group Key: c.cidade"
+"  ->  Hash Join  (cost=317.00..537.26 rows=10000 width=20) (actual time=6.330..13.021 rows=10000 loops=1)"
+"        Hash Cond: (v.codc = c.codc)"
+"        ->  Seq Scan on veiculo v  (cost=0.00..194.00 rows=10000 width=12) (actual time=0.022..1.236 rows=10000 loops=1)"
+"        ->  Hash  (cost=192.00..192.00 rows=10000 width=16) (actual time=6.087..6.088 rows=10000 loops=1)"
+"              Buckets: 16384  Batches: 1  Memory Usage: 609kB"
+"              ->  Seq Scan on cliente c  (cost=0.00..192.00 rows=10000 width=16) (actual time=0.018..3.500 rows=10000 loops=1)"
+"Planning Time: 0.479 ms"
+"Execution Time: 16.823 ms"
+
+
+
+
+8)      Recupere a quantidade de consertos feitos por cada mecânico durante o período de 12/06/2018 até 19/010/2018
+
+	explain analyse select count(codm) from conserto where data between '12/06/2018' and '19/010/2018'
+
+"Aggregate  (cost=223.64..223.65 rows=1 width=8) (actual time=2.233..2.233 rows=1 loops=1)"
+"  ->  Seq Scan on conserto  (cost=0.00..214.00 rows=3855 width=4) (actual time=0.025..1.893 rows=3863 loops=1)"
+"        Filter: ((data >= '2018-06-12'::date) AND (data <= '2018-10-19'::date))"
+"        Rows Removed by Filter: 6137"
+"Planning Time: 2.184 ms"
+"Execution Time: 2.281 ms"
+
+	Create index idx_codm_conserto on conserto using btree(codm)
+	CREATE INDEX idx_conserto_data ON conserto USING btree (data)
+
+
+"Aggregate  (cost=219.26..219.27 rows=1 width=8) (actual time=1.622..1.622 rows=1 loops=1)"
+"  ->  Bitmap Heap Scan on conserto  (cost=87.80..209.62 rows=3855 width=4) (actual time=0.404..1.207 rows=3863 loops=1)"
+"        Recheck Cond: ((data >= '2018-06-12'::date) AND (data <= '2018-10-19'::date))"
+"        Heap Blocks: exact=64"
+"        ->  Bitmap Index Scan on idx_conserto_data  (cost=0.00..86.84 rows=3855 width=0) (actual time=0.381..0.381 rows=3863 loops=1)"
+"              Index Cond: ((data >= '2018-06-12'::date) AND (data <= '2018-10-19'::date))"
+"Planning Time: 0.204 ms"
+"Execution Time: 1.682 ms"
+
+
+
+
+
+9)   Recupere a quantidade de consertos feitos agrupada pela marca do veículo.
+
+	explain analyse select count(codm) from conserto join veiculo using(codv) group by marca
+
+"HashAggregate  (cost=559.26..559.30 rows=4 width=11) (actual time=15.719..15.720 rows=4 loops=1)"
+"  Group Key: veiculo.marca"
+"  ->  Hash Join  (cost=319.00..509.26 rows=10000 width=7) (actual time=6.592..12.398 rows=10000 loops=1)"
+"        Hash Cond: (conserto.codv = veiculo.codv)"
+"        ->  Seq Scan on conserto  (cost=0.00..164.00 rows=10000 width=8) (actual time=0.024..1.352 rows=10000 loops=1)"
+"        ->  Hash  (cost=194.00..194.00 rows=10000 width=7) (actual time=6.433..6.434 rows=10000 loops=1)"
+"              Buckets: 16384  Batches: 1  Memory Usage: 539kB"
+"              ->  Seq Scan on veiculo  (cost=0.00..194.00 rows=10000 width=7) (actual time=0.019..2.435 rows=10000 loops=1)"
+"Planning Time: 0.620 ms"
+"Execution Time: 15.989 ms"
+
+	Create index idx_codv on conserto using btree(codv)
+	Create index idx_codc_marca on veiculo using btree(marca)
+	Create index idx_codv_veiculo on veiculo using btree(codv)
+
+"HashAggregate  (cost=559.26..559.30 rows=4 width=11) (actual time=16.590..16.591 rows=4 loops=1)"
+"  Group Key: veiculo.marca"
+"  ->  Hash Join  (cost=319.00..509.26 rows=10000 width=7) (actual time=6.470..13.164 rows=10000 loops=1)"
+"        Hash Cond: (conserto.codv = veiculo.codv)"
+"        ->  Seq Scan on conserto  (cost=0.00..164.00 rows=10000 width=8) (actual time=0.024..1.242 rows=10000 loops=1)"
+"        ->  Hash  (cost=194.00..194.00 rows=10000 width=7) (actual time=6.297..6.298 rows=10000 loops=1)"
+"              Buckets: 16384  Batches: 1  Memory Usage: 539kB"
+"              ->  Seq Scan on veiculo  (cost=0.00..194.00 rows=10000 width=7) (actual time=0.074..3.276 rows=10000 loops=1)"
+"Planning Time: 0.539 ms"
+"Execution Time: 16.884 ms"
+
+
+10)   Recupere o modelo, a marca e o ano dos veículos que têm quilometragem maior que a média de quilometragem de todos os veículos.
+
+	explain analyse select v.modelo,v.marca,v.ano from veiculo v where v.quilometragem>
+	(select avg(quilometragem) from veiculo)
+
+"Seq Scan on veiculo v  (cost=219.01..438.01 rows=3333 width=12) (actual time=3.273..6.014 rows=5026 loops=1)"
+"  Filter: (quilometragem > $0)"
+"  Rows Removed by Filter: 4974"
+"  InitPlan 1 (returns $0)"
+"    ->  Aggregate  (cost=219.00..219.01 rows=1 width=8) (actual time=3.237..3.237 rows=1 loops=1)"
+"          ->  Seq Scan on veiculo  (cost=0.00..194.00 rows=10000 width=8) (actual time=0.017..1.257 rows=10000 loops=1)"
+"Planning Time: 0.278 ms"
+"Execution Time: 6.247 ms"
+
+	create index idx_quilometragem on veiculo using btree(quilometragem)
+
+"Bitmap Heap Scan on veiculo v  (cost=285.13..420.79 rows=3333 width=12) (actual time=4.538..6.429 rows=5026 loops=1)"
+"  Recheck Cond: (quilometragem > $0)"
+"  Heap Blocks: exact=94"
+"  InitPlan 1 (returns $0)"
+"    ->  Aggregate  (cost=219.00..219.01 rows=1 width=8) (actual time=3.356..3.356 rows=1 loops=1)"
+"          ->  Seq Scan on veiculo  (cost=0.00..194.00 rows=10000 width=8) (actual time=0.024..1.446 rows=10000 loops=1)"
+"  ->  Bitmap Index Scan on idx_quilometragem  (cost=0.00..65.28 rows=3333 width=0) (actual time=4.511..4.511 rows=5026 loops=1)"
+"        Index Cond: (quilometragem > $0)"
+"Planning Time: 0.335 ms"
+"Execution Time: 6.839 ms"
+
+11)   Recupere o nome dos mecânicos que têm mais de um conserto marcado para o mesmo dia.
+
+	explain analyse select m.nome from mecanico m where m.codm in (select codm from conserto group by codm,data having count(codm)>1 )
+
+"Hash Join  (cost=348.90..615.60 rows=2108 width=12) (actual time=10.193..12.320 rows=16 loops=1)"
+"  Hash Cond: (m.codm = "ANY_subquery".codm)"
+"  ->  Seq Scan on mecanico m  (cost=0.00..217.00 rows=10000 width=16) (actual time=0.041..1.255 rows=10000 loops=1)"
+"  ->  Hash  (cost=346.40..346.40 rows=200 width=4) (actual time=9.888..9.888 rows=16 loops=1)"
+"        Buckets: 1024  Batches: 1  Memory Usage: 9kB"
+"        ->  HashAggregate  (cost=344.40..346.40 rows=200 width=4) (actual time=9.856..9.862 rows=16 loops=1)"
+"              Group Key: "ANY_subquery".codm"
+"              ->  Subquery Scan on "ANY_subquery"  (cost=239.00..339.13 rows=2108 width=4) (actual time=7.739..9.842 rows=16 loops=1)"
+"                    ->  HashAggregate  (cost=239.00..318.05 rows=2108 width=8) (actual time=7.737..9.837 rows=16 loops=1)"
+"                          Group Key: conserto.codm, conserto.data"
+"                          Filter: (count(conserto.codm) > 1)"
+"                          Rows Removed by Filter: 9968"
+"                          ->  Seq Scan on conserto  (cost=0.00..164.00 rows=10000 width=8) (actual time=0.021..1.259 rows=10000 loops=1)"
+"Planning Time: 1.038 ms"
+"Execution Time: 13.452 ms"
+
+
+	Create index idx_codm on mecanico using btree(codm)
+	Create index idx_codm_conserto on conserto using hash(codm)
+	CREATE INDEX idx_conserto_data ON conserto USING btree (data)
+
+
+"Hash Join  (cost=348.90..615.60 rows=2108 width=12) (actual time=9.953..12.263 rows=16 loops=1)"
+"  Hash Cond: (m.codm = "ANY_subquery".codm)"
+"  ->  Seq Scan on mecanico m  (cost=0.00..217.00 rows=10000 width=16) (actual time=0.022..1.368 rows=10000 loops=1)"
+"  ->  Hash  (cost=346.40..346.40 rows=200 width=4) (actual time=9.604..9.604 rows=16 loops=1)"
+"        Buckets: 1024  Batches: 1  Memory Usage: 9kB"
+"        ->  HashAggregate  (cost=344.40..346.40 rows=200 width=4) (actual time=9.576..9.582 rows=16 loops=1)"
+"              Group Key: "ANY_subquery".codm"
+"              ->  Subquery Scan on "ANY_subquery"  (cost=239.00..339.13 rows=2108 width=4) (actual time=6.653..9.552 rows=16 loops=1)"
+"                    ->  HashAggregate  (cost=239.00..318.05 rows=2108 width=8) (actual time=6.653..9.548 rows=16 loops=1)"
+"                          Group Key: conserto.codm, conserto.data"
+"                          Filter: (count(conserto.codm) > 1)"
+"                          Rows Removed by Filter: 9968"
+"                          ->  Seq Scan on conserto  (cost=0.00..164.00 rows=10000 width=8) (actual time=0.020..1.188 rows=10000 loops=1)"
+"Planning Time: 0.457 ms"
+"Execution Time: 12.928 ms"
